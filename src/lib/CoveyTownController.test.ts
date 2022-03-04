@@ -249,6 +249,40 @@ describe('CoveyTownController', () => {
       expect(areas[0].boundingBox).toEqual(newConversationArea.boundingBox);
     });
   });
+
+  // HW 3.1
+  describe('conversationArea behavior', () => {
+    let testingTown: CoveyTownController;
+    beforeEach(async () => {
+      const townName = `addConversationArea test town ${nanoid()}`;
+      testingTown = new CoveyTownController(townName, false);
+
+      const newConversationArea = TestUtils.createConversationForTesting({ 
+        boundingBox: { x: 10, y: 10, height: 10, width: 10 } });
+      const result = testingTown.addConversationArea(newConversationArea);
+      expect(result).toBe(true);
+      
+      // add players and check them
+      const player1 = new Player(nanoid());
+      const player2 = new Player(nanoid());
+      await testingTown.addPlayer(player1);
+      await testingTown.addPlayer(player2);
+
+      // async adding problem
+
+      const newLocation1:UserLocation = { moving: false, rotation: 'front', x: 10, y: 10, 
+        conversationLabel: newConversationArea.label };
+      testingTown.updatePlayerLocation(player1, newLocation1);
+      testingTown.updatePlayerLocation(player2, newLocation1);
+
+      const areas = testingTown.conversationAreas;
+      expect(areas[0].occupantsByID.length).toBe(2);
+    });
+    it('should remove the player from the conversation area on disconnection', async ()=>{
+
+    });
+  });
+
   describe('updatePlayerLocation', () =>{
     let testingTown: CoveyTownController;
     beforeEach(() => {
