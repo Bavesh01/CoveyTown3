@@ -130,6 +130,19 @@ describe('CoveyTownController', () => {
       expect(listenerRemoved.onTownDestroyed).not.toBeCalled();
 
     });
+    it('should not notify removed listeners that the town is destroyed when disconnectAllPlayers is called', async () => {
+      const player = new Player('test player');
+      await testingTown.addPlayer(player);
+
+      mockListeners.forEach(listener => testingTown.addTownListener(listener));
+      const listenerRemoved = mockListeners[1];
+      testingTown.removeTownListener(listenerRemoved);
+      testingTown.disconnectAllPlayers();
+      expect(listenerRemoved.onTownDestroyed).not.toBeCalled();
+
+    });
+    // HW 3.1.2
+
   });
   describe('townSubscriptionHandler', () => {
     const mockSocket = mock<Socket>();
@@ -251,35 +264,94 @@ describe('CoveyTownController', () => {
   });
 
   // HW 3.1
+  // 3.1.1 : ensure players are removed from conversation areas
+  // 3.1.2 : ensure onconversation areas listeners are updated.
+
   describe('conversationArea behavior', () => {
     let testingTown: CoveyTownController;
+    const mockListeners = [mock<CoveyTownListener>(),
+      mock<CoveyTownListener>(),
+      mock<CoveyTownListener>()];
+  
+    const newConversationArea = TestUtils.createConversationForTesting({ 
+      boundingBox: { x: 10, y: 10, height: 10, width: 10 } });
+    const newLocation1:UserLocation = { moving: false, rotation: 'front', x: 10, y: 10, 
+      conversationLabel: newConversationArea.label };    
+    // add players and check them
+    let player1: Player;
+    let player2: Player;
+
+
     beforeEach(async () => {
       const townName = `addConversationArea test town ${nanoid()}`;
       testingTown = new CoveyTownController(townName, false);
-
-      const newConversationArea = TestUtils.createConversationForTesting({ 
-        boundingBox: { x: 10, y: 10, height: 10, width: 10 } });
       const result = testingTown.addConversationArea(newConversationArea);
       expect(result).toBe(true);
-      
-      // add players and check them
-      const player1 = new Player(nanoid());
-      const player2 = new Player(nanoid());
-      await testingTown.addPlayer(player1);
-      await testingTown.addPlayer(player2);
+      mockListeners.forEach(mockReset);
+      player1 = new Player(nanoid());
+      player2 = new Player(nanoid());
 
-      // async adding problem
-
-      const newLocation1:UserLocation = { moving: false, rotation: 'front', x: 10, y: 10, 
-        conversationLabel: newConversationArea.label };
-      testingTown.updatePlayerLocation(player1, newLocation1);
-      testingTown.updatePlayerLocation(player2, newLocation1);
-
-      const areas = testingTown.conversationAreas;
-      expect(areas[0].occupantsByID.length).toBe(2);
     });
     it('should remove the player from the conversation area on disconnection', async ()=>{
 
+      
+      const session1 = await testingTown.addPlayer(player1);
+      const session2 = await testingTown.addPlayer(player2);
+      // async adding problem error display
+
+
+      testingTown.updatePlayerLocation(player1, newLocation1);
+      testingTown.updatePlayerLocation(player2, newLocation1);
+      console.log(player1.activeConversationArea?.occupantsByID);
+      console.log(testingTown.conversationAreas[0]);
+
+
+      const areas = testingTown.conversationAreas;
+      expect(areas[0].occupantsByID.length).toBe(2);
+
+      testingTown.destroySession(session2);
+      expect(areas[0].occupantsByID.length).toBe(1);
+    });
+    it('should emit an onConversationUpdated event when a player leaves the conversation area', async ()=>{
+      
+      await testingTown.addPlayer(player1);
+      const session = await testingTown.addPlayer(player2);
+
+      testingTown.updatePlayerLocation(player1, newLocation1);
+      testingTown.updatePlayerLocation(player2, newLocation1);
+
+      mockListeners.forEach(listener => testingTown.addTownListener(listener));
+
+      const area = testingTown.conversationAreas[0];
+      testingTown.destroySession(session);
+      mockListeners.forEach(listener => expect(listener.onConversationAreaUpdated).toBeCalledWith(area));
+    });
+    it('should NOT emit an onConversationUpdated event when the last player leaves the conversation area', async ()=>{
+      
+      const session = await testingTown.addPlayer(player1);
+      testingTown.updatePlayerLocation(player1, newLocation1);
+
+      mockListeners.forEach(listener => testingTown.addTownListener(listener));
+
+      const area = testingTown.conversationAreas[0];
+      expect(area.occupantsByID.length).toBe(1);
+
+      testingTown.destroySession(session);
+      // not expect - WORK ON IT
+      mockListeners.forEach(listener => expect(listener.onConversationAreaUpdated).not.toBeCalledWith(area));
+    });
+    it('should emit an onConversationAreaDestroyed event when the last player leaves the conversation area', async ()=>{
+      
+      const session = await testingTown.addPlayer(player1);
+      testingTown.updatePlayerLocation(player1, newLocation1);
+
+      mockListeners.forEach(listener => testingTown.addTownListener(listener));
+
+      const area = testingTown.conversationAreas[0];
+      expect(area.occupantsByID.length).toBe(1);
+
+      testingTown.destroySession(session);
+      mockListeners.forEach(listener => expect(listener.onConversationAreaDestroyed).toBeCalledWith(area));
     });
   });
 
@@ -322,5 +394,6 @@ describe('CoveyTownController', () => {
       testingTown.updatePlayerLocation(player, newLocation);
       expect(mockListener.onConversationAreaUpdated).toHaveBeenCalledTimes(1);
     });
+    
   });
 });
