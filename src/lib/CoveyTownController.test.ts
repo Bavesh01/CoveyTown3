@@ -10,6 +10,7 @@ import PlayerSession from '../types/PlayerSession';
 import { townSubscriptionHandler } from '../requestHandlers/CoveyTownRequestHandlers';
 import CoveyTownsStore from './CoveyTownsStore';
 import * as TestUtils from '../client/TestUtils';
+import { ServerConversationArea } from '../client/TownsServiceClient';
 
 const mockTwilioVideo = mockDeep<TwilioVideo>();
 jest.spyOn(TwilioVideo, 'getInstance').mockReturnValue(mockTwilioVideo);
@@ -272,15 +273,12 @@ describe('CoveyTownController', () => {
     const mockListeners = [mock<CoveyTownListener>(),
       mock<CoveyTownListener>(),
       mock<CoveyTownListener>()];
-  
     const newConversationArea = TestUtils.createConversationForTesting({ 
       boundingBox: { x: 10, y: 10, height: 10, width: 10 } });
     const newLocation1:UserLocation = { moving: false, rotation: 'front', x: 10, y: 10, 
       conversationLabel: newConversationArea.label };    
-    // add players and check them
     let player1: Player;
     let player2: Player;
-
 
     beforeEach(async () => {
       const townName = `addConversationArea test town ${nanoid()}`;
@@ -294,17 +292,12 @@ describe('CoveyTownController', () => {
     });
     it('should remove the player from the conversation area on disconnection', async ()=>{
 
-      
-      const session1 = await testingTown.addPlayer(player1);
+      await testingTown.addPlayer(player1);
       const session2 = await testingTown.addPlayer(player2);
       // async adding problem error display
 
-
       testingTown.updatePlayerLocation(player1, newLocation1);
       testingTown.updatePlayerLocation(player2, newLocation1);
-      console.log(player1.activeConversationArea?.occupantsByID);
-      console.log(testingTown.conversationAreas[0]);
-
 
       const areas = testingTown.conversationAreas;
       expect(areas[0].occupantsByID.length).toBe(2);
@@ -338,7 +331,7 @@ describe('CoveyTownController', () => {
 
       testingTown.destroySession(session);
       // not expect - WORK ON IT
-      mockListeners.forEach(listener => expect(listener.onConversationAreaUpdated).not.toBeCalledWith(area));
+      mockListeners.forEach(listener => expect(listener.onConversationAreaUpdated).not.toBeCalled());
     });
     it('should emit an onConversationAreaDestroyed event when the last player leaves the conversation area', async ()=>{
       
@@ -352,9 +345,12 @@ describe('CoveyTownController', () => {
 
       testingTown.destroySession(session);
       mockListeners.forEach(listener => expect(listener.onConversationAreaDestroyed).toBeCalledWith(area));
+      expect(testingTown.conversationAreas.length).toBe(0);
     });
   });
 
+  // HW 3.2
+  // 3.2.1 
   describe('updatePlayerLocation', () =>{
     let testingTown: CoveyTownController;
     beforeEach(() => {
@@ -394,6 +390,152 @@ describe('CoveyTownController', () => {
       testingTown.updatePlayerLocation(player, newLocation);
       expect(mockListener.onConversationAreaUpdated).toHaveBeenCalledTimes(1);
     });
-    
+    // Occupants by ID
+    // Emission of ConvoAreaUpdated/Destroyed
+    // set active coversation area
+    // existence of convo areas
+    // Same area  - false
+    afterEach(() => {
+      
+    });
+  });
+  // inputs to parameters
+  describe('updatePlayerLocation behavior', () => {
+    let testingTown: CoveyTownController;
+    const mockListeners = [mock<CoveyTownListener>(),
+      mock<CoveyTownListener>(),
+      mock<CoveyTownListener>()];
+    let player1:Player;
+    let player2:Player;
+
+
+    const newConversationArea1 = TestUtils.createConversationForTesting({ 
+      boundingBox: { x: 10, y: 10, height: 10, width: 10 } } );
+    const newConversationArea2 = TestUtils.createConversationForTesting({ 
+      boundingBox: { x: 100, y: 100, height: 10, width: 10 } });
+    let areas: ServerConversationArea[];
+
+    const newLocation1:UserLocation = { moving: false, rotation: 'front', x: 0, y: 0, 
+      conversationLabel: newConversationArea1.label }; 
+    const newLocation2:UserLocation = { moving: false, rotation: 'front', x: 100, y: 100, 
+      conversationLabel: newConversationArea2.label };
+    const newLocationUndefined:UserLocation = { moving: false, rotation: 'front', x: 50, y: 50, 
+      conversationLabel: undefined };  
+
+    beforeEach(async () => {
+      const townName = `addConversationArea test town ${nanoid()}`;
+      testingTown = new CoveyTownController(townName, false);
+      const result1 = testingTown.addConversationArea(newConversationArea1);
+      const result2 = testingTown.addConversationArea(newConversationArea2);
+      expect(result1).toBe(true);
+      expect(result2).toBe(true);
+      mockListeners.forEach(mockReset);
+      player1 = new Player(nanoid());
+      player2 = new Player(nanoid());
+      await testingTown.addPlayer(player1);
+      await testingTown.addPlayer(player2);
+
+      mockListeners.forEach(listener => testingTown.addTownListener(listener));
+      areas = testingTown.conversationAreas;
+    });
+
+    describe('moving from a conversationArea', () => {
+      beforeEach( () => {
+        testingTown.updatePlayerLocation(player1, newLocation1);
+        testingTown.updatePlayerLocation(player2, newLocation1);
+        mockListeners.forEach(mockReset);
+        expect(areas[0].occupantsByID.length).toBe(2);
+      });
+      describe('into empty space', () => {
+        beforeEach( () => {
+          expect(player1.activeConversationArea).toBe(areas[0]);
+          testingTown.updatePlayerLocation(player1, newLocationUndefined);
+        });
+        it('should emit onConversationAreaUpdated/Destroyed', async () => {
+          await mockListeners.forEach(
+            listener => expect(listener.onConversationAreaUpdated).toBeCalledWith(areas[0]));
+          
+          mockListeners.forEach(mockReset);
+          testingTown.updatePlayerLocation(player2, newLocationUndefined);
+          await mockListeners.forEach(
+            listener => expect(listener.onConversationAreaUpdated).not.toBeCalled());
+          await mockListeners.forEach(
+            listener => expect(listener.onConversationAreaDestroyed).toBeCalled());
+        });
+        it('should remove the player from OccupantsID', () => {
+          expect(areas[0].occupantsByID.length).toBe(1);
+          expect(areas[0].occupantsByID.find((id) => id === player1.id)).toBeUndefined();
+        });
+        it('should set the activeConversation to undefined', () => {
+          expect(player1.activeConversationArea).toBeUndefined();
+        });
+      }); 
+      describe('into a conversationArea', () => {
+        beforeEach( () => {
+          expect(player1.activeConversationArea).toBe(areas[0]);
+          testingTown.updatePlayerLocation(player1, newLocation2);
+        });
+        it('should emit onConversationAreaUpdated', async () => {
+          await mockListeners.forEach(
+            listener => expect(listener.onConversationAreaUpdated).toBeCalledWith(areas[1]));
+        });
+        it('should add the player to OccupantsID', () => {
+          expect(areas[1].occupantsByID.length).toBe(1);
+          expect(areas[1].occupantsByID.find((id) => id === player1.id)).toBe(player1.id);
+        });
+        it('should set the activeConversation to the new one', () => {
+          expect(player1.activeConversationArea).toBe(areas[1]);
+        });
+      });
+    });
+
+    afterEach(() => {
+      mockListeners.forEach(
+        listener => expect(listener.onPlayerMoved).toBeCalled());
+    });
+
+    describe('moving within empty space', () => {
+      it('should not emit to a conversation area', () => {
+        testingTown.updatePlayerLocation(player1, newLocationUndefined);
+        mockListeners.forEach(mockReset);
+        testingTown.updatePlayerLocation(player1, newLocationUndefined);
+        expect(mockListeners.forEach(lis => expect(lis.onConversationAreaUpdated).not.toBeCalled()));
+      });
+    });
+  });
+
+
+  // Parameters to Inputs
+  describe('updatePlayerLocation notifies the listeners accordingly', () => {
+    let testingTown: CoveyTownController;
+    const mockListeners = [mock<CoveyTownListener>(),
+      mock<CoveyTownListener>(),
+      mock<CoveyTownListener>()];
+    const player = new Player(nanoid());
+
+    const newConversationArea1 = TestUtils.createConversationForTesting({ 
+      boundingBox: { x: 10, y: 10, height: 10, width: 10 } });
+    const newConversationArea2 = TestUtils.createConversationForTesting({ 
+      boundingBox: { x: 100, y: 100, height: 10, width: 10 } });
+
+    const newLocation1:UserLocation = { moving: false, rotation: 'front', x: 0, y: 0, 
+      conversationLabel: newConversationArea1.label }; 
+    const newLocation2:UserLocation = { moving: false, rotation: 'front', x: 100, y: 100, 
+      conversationLabel: newConversationArea2.label };
+    const newLocationUndefined:UserLocation = { moving: false, rotation: 'front', x: 50, y: 50, 
+      conversationLabel: undefined };  
+
+    beforeEach(() => {
+      const townName = `updatePlayerLocation test town ${nanoid()}`;
+      testingTown = new CoveyTownController(townName, false);
+      
+    });
+    it('emits onConversationAreaUpdated from undefined to a conversationArea', () => {
+
+    });
+
+    afterEach(() => {
+      // mockListeners.forEach(listener => expect(listener.onPlayerMoved).toBeCalledWith(player));
+    });
   });
 });
