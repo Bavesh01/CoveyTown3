@@ -277,21 +277,180 @@ describe('CoveyTownController', () => {
       });
     });
   });
+  /*
+   Implement the method addConversationArea method in CoveyTownController. Recall from the architectural diagram above that the CoveyTownController is responsible for keeping track of all of the state regarding a single town, including its conversation areas. Avery has already added a private field, _conversationAreas to CoveyTownController. Your task is to implement the addConversationArea method, which should have the following behavior:
+    Check that the topic is defined:
+    - Check to see if there is an existing conversation area with the requested label, and if one already exists, return false.
+    - Check to see if the boundingBox of the new conversation area overlaps with any existing, and if so, return false.
+    - Boxes are allowed to be adjacent that is, two conversation areas may share boundary points.
+    - The x, y position of the box denotes the center of the box on the map, height and width represent the overall height and width of the box.
+    
+    Any players who are in the region defined by the boundingBox of the new conversation area should be added to it as occupants, and those players should have their _activeConversationArea property set to that new conversation area.
+    A player is defined as inside of a box if the x, y position of the player is anywhere within the bounding box. A player who overlaps only with the edge of a conversation area’s bounding box is not in the box.
+    This behavior only applies when a conversation area is created. After the conversation area is created, the server does not rely on the x,y position of a player to determine which conversation area they are in, and instead relies on the players’ self-reported location.conversationLabel as the source of truth.
+    
+    Notify all listeners that are subscribed to this town that the newly created conversation area was created, by invoking onConversationAreaUpdated(theNewConversationArea) on each. 
+   */
+  // HW 3.3
   describe('addConversationArea', () => {
     let testingTown: CoveyTownController;
+    let newConversationArea1: ServerConversationArea;
+    let areas: ServerConversationArea[];
     beforeEach(() => {
       const townName = `addConversationArea test town ${nanoid()}`;
       testingTown = new CoveyTownController(townName, false);
+      newConversationArea1 = TestUtils.createConversationForTesting({
+        conversationLabel: '1',
+        boundingBox: { x: 100, y: 100, height: 10, width: 10 },
+      });
+      const result = testingTown.addConversationArea(newConversationArea1);
+      expect(result).toBe(true);
+      areas = testingTown.conversationAreas;
     });
     it('should add the conversation area to the list of conversation areas', () => {
-      const newConversationArea = TestUtils.createConversationForTesting();
-      const result = testingTown.addConversationArea(newConversationArea);
-      expect(result).toBe(true);
-      const areas = testingTown.conversationAreas;
       expect(areas.length).toEqual(1);
-      expect(areas[0].label).toEqual(newConversationArea.label);
-      expect(areas[0].topic).toEqual(newConversationArea.topic);
-      expect(areas[0].boundingBox).toEqual(newConversationArea.boundingBox);
+      expect(areas[0].label).toEqual(newConversationArea1.label);
+      expect(areas[0].topic).toEqual(newConversationArea1.topic);
+      expect(areas[0].boundingBox).toEqual(newConversationArea1.boundingBox);
+    });
+    it('should have a valid topic', () => {});
+    it('should have a new conversationArea label', () => {
+      // undefined case
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({ conversationLabel: '1' }),
+        ),
+      ).toBeFalsy();
+
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({ conversationLabel: '2' }),
+        ),
+      ).toBeTruthy();
+    });
+    it('should not allow overlapping areas', () => {
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 90, y: 90, height: 20, width: 20 },
+          }),
+        ),
+      ).toBeFalsy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 0, y: 0, height: 10, width: 10 },
+          }),
+        ),
+      ).toBeTruthy();
+    });
+    it('should allow adjacent areas', () => {
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 95, y: 95, height: 20, width: 20 },
+          }),
+        ),
+      ).toBeFalsy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 100, y: 90, height: 10, width: 10 },
+          }),
+        ),
+      ).toBeTruthy();
+    });
+    it('should have the right boundaries', () => {
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 90, y: 90, height: 10, width: 10 },
+          }),
+        ),
+      ).toBeTruthy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 90, y: 90, height: 11, width: 10 },
+          }),
+        ),
+      ).toBeFalsy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 90, y: 90, height: 10, width: 11 },
+          }),
+        ),
+      ).toBeFalsy();
+
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 90, y: 110, height: 10, width: 10 },
+          }),
+        ),
+      ).toBeTruthy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 90, y: 110, height: 11, width: 10 },
+          }),
+        ),
+      ).toBeFalsy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 90, y: 110, height: 10, width: 11 },
+          }),
+        ),
+      ).toBeFalsy();
+
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 110, y: 90, height: 10, width: 10 },
+          }),
+        ),
+      ).toBeTruthy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 110, y: 90, height: 11, width: 10 },
+          }),
+        ),
+      ).toBeFalsy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 110, y: 90, height: 10, width: 11 },
+          }),
+        ),
+      ).toBeFalsy();
+
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 110, y: 110, height: 10, width: 10 },
+          }),
+        ),
+      ).toBeTruthy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 110, y: 110, height: 11, width: 10 },
+          }),
+        ),
+      ).toBeFalsy();
+      expect(
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x: 110, y: 110, height: 10, width: 11 },
+          }),
+        ),
+      ).toBeFalsy();
+    });
+    describe('player stuff', () => {
+      beforeEach(() => {});
     });
   });
 
@@ -553,9 +712,9 @@ describe('CoveyTownController', () => {
           expect(areas[0].occupantsByID.length).toBe(1);
           expect(areas[0].occupantsByID[0]).toBe(player2.id);
           // expect(areas[0].occupantsByID.find(id => id === player1.id)).toBeUndefined();
-          testingTown.conversationAreas.forEach(
-            conv => expect(conv.occupantsByID.find(
-              id => id === player1.id)).toBeUndefined());
+          testingTown.conversationAreas.forEach(conv =>
+            expect(conv.occupantsByID.find(id => id === player1.id)).toBeUndefined(),
+          );
         });
         it('should set the activeConversation to undefined', () => {
           expect(player1.activeConversationArea).toBeUndefined();
