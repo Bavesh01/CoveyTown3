@@ -395,9 +395,6 @@ describe('CoveyTownController', () => {
     // set active coversation area
     // existence of convo areas
     // Same area  - false
-    afterEach(() => {
-      
-    });
   });
   // inputs to parameters
   describe('updatePlayerLocation behavior', () => {
@@ -501,41 +498,6 @@ describe('CoveyTownController', () => {
         testingTown.updatePlayerLocation(player1, newLocationUndefined);
         expect(mockListeners.forEach(lis => expect(lis.onConversationAreaUpdated).not.toBeCalled()));
       });
-    });
-  });
-
-
-  // Parameters to Inputs
-  describe('updatePlayerLocation notifies the listeners accordingly', () => {
-    let testingTown: CoveyTownController;
-    const mockListeners = [mock<CoveyTownListener>(),
-      mock<CoveyTownListener>(),
-      mock<CoveyTownListener>()];
-    const player = new Player(nanoid());
-
-    const newConversationArea1 = TestUtils.createConversationForTesting({ 
-      boundingBox: { x: 10, y: 10, height: 10, width: 10 } });
-    const newConversationArea2 = TestUtils.createConversationForTesting({ 
-      boundingBox: { x: 100, y: 100, height: 10, width: 10 } });
-
-    const newLocation1:UserLocation = { moving: false, rotation: 'front', x: 0, y: 0, 
-      conversationLabel: newConversationArea1.label }; 
-    const newLocation2:UserLocation = { moving: false, rotation: 'front', x: 100, y: 100, 
-      conversationLabel: newConversationArea2.label };
-    const newLocationUndefined:UserLocation = { moving: false, rotation: 'front', x: 50, y: 50, 
-      conversationLabel: undefined };  
-
-    beforeEach(() => {
-      const townName = `updatePlayerLocation test town ${nanoid()}`;
-      testingTown = new CoveyTownController(townName, false);
-      
-    });
-    it('emits onConversationAreaUpdated from undefined to a conversationArea', () => {
-
-    });
-
-    afterEach(() => {
-      // mockListeners.forEach(listener => expect(listener.onPlayerMoved).toBeCalledWith(player));
     });
   });
 });
