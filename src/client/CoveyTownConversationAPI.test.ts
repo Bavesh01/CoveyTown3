@@ -69,6 +69,7 @@ describe('Create Conversation Area API', () => {
     });
   });
 });
+
 describe('conversationAreaCreateHandler', () => {
 
   const mockCoveyTownStore = mock<CoveyTownsStore>();
@@ -98,5 +99,56 @@ describe('conversationAreaCreateHandler', () => {
     });
     expect(mockCoveyTownController.getSessionByToken).toBeCalledWith(invalidSessionToken);
     expect(mockCoveyTownController.addConversationArea).not.toHaveBeenCalled();
+  });
+  describe('api stuff', () => {
+    let server: http.Server;
+    let apiClient: TownsServiceClient;
+  
+    async function createTownForTesting(
+      friendlyNameToUse?: string,
+      isPublic = false,
+    ): Promise<TestTownData> {
+      const friendlyName =
+        friendlyNameToUse !== undefined
+          ? friendlyNameToUse
+          : `${isPublic ? 'Public' : 'Private'}TestingTown=${nanoid()}`;
+      const ret = await apiClient.createTown({
+        friendlyName,
+        isPubliclyListed: isPublic,
+      });
+      return {
+        friendlyName,
+        isPubliclyListed: isPublic,
+        coveyTownID: ret.coveyTownID,
+        townUpdatePassword: ret.coveyTownPassword,
+      };
+    }
+  
+    beforeAll(async () => {
+      const app = Express();
+      app.use(CORS());
+      server = http.createServer(app);
+  
+      addTownRoutes(server, app);
+      await server.listen();
+      const address = server.address() as AddressInfo;
+  
+      apiClient = new TownsServiceClient(`http://127.0.0.1:${address.port}`);
+    });
+    afterAll(async () => {
+      await server.close();
+    });
+    it('Executes without error when creating a new conversation', async () => {
+      const testingTown = await createTownForTesting(undefined, true);
+      const testingSession = await apiClient.joinTown({
+        userName: nanoid(),
+        coveyTownID: testingTown.coveyTownID,
+      });
+      await apiClient.createConversationArea({
+        conversationArea: createConversationForTesting(),
+        coveyTownID: testingTown.coveyTownID,
+        sessionToken: testingSession.coveySessionToken,
+      });
+    });
   });
 });
