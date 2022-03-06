@@ -285,9 +285,9 @@ describe('CoveyTownController', () => {
     - Boxes are allowed to be adjacent that is, two conversation areas may share boundary points.
     - The x, y position of the box denotes the center of the box on the map, height and width represent the overall height and width of the box.
     
-    Any players who are in the region defined by the boundingBox of the new conversation area should be added to it as occupants, and those players should have their _activeConversationArea property set to that new conversation area.
-    A player is defined as inside of a box if the x, y position of the player is anywhere within the bounding box. A player who overlaps only with the edge of a conversation area’s bounding box is not in the box.
-    This behavior only applies when a conversation area is created. After the conversation area is created, the server does not rely on the x,y position of a player to determine which conversation area they are in, and instead relies on the players’ self-reported location.conversationLabel as the source of truth.
+    - Any players who are in the region defined by the boundingBox of the new conversation area should be added to it as occupants, and those players should have their _activeConversationArea property set to that new conversation area.
+    - A player is defined as inside of a box if the x, y position of the player is anywhere within the bounding box. A player who overlaps only with the edge of a conversation area’s bounding box is not in the box.
+    ? This behavior only applies when a conversation area is created. After the conversation area is created, the server does not rely on the x,y position of a player to determine which conversation area they are in, and instead relies on the players’ self-reported location.conversationLabel as the source of truth.
     
     Notify all listeners that are subscribed to this town that the newly created conversation area was created, by invoking onConversationAreaUpdated(theNewConversationArea) on each. 
    */
@@ -296,9 +296,24 @@ describe('CoveyTownController', () => {
     let testingTown: CoveyTownController;
     let newConversationArea1: ServerConversationArea;
     let areas: ServerConversationArea[];
+    let addAreaXYHW: (x: number, y: number, height: number, width: number) => boolean;
+    const mockListeners = [
+      mock<CoveyTownListener>(),
+      mock<CoveyTownListener>(),
+      mock<CoveyTownListener>(),
+    ];
+
     beforeEach(() => {
+      addAreaXYHW = (x: number, y: number, height: number, width: number) =>
+        testingTown.addConversationArea(
+          TestUtils.createConversationForTesting({
+            boundingBox: { x, y, height, width },
+          }),
+        );
       const townName = `addConversationArea test town ${nanoid()}`;
       testingTown = new CoveyTownController(townName, false);
+      mockListeners.forEach(listener => testingTown.addTownListener(listener));
+      mockListeners.forEach(mockReset);
       newConversationArea1 = TestUtils.createConversationForTesting({
         conversationLabel: '1',
         boundingBox: { x: 100, y: 100, height: 10, width: 10 },
@@ -307,11 +322,20 @@ describe('CoveyTownController', () => {
       expect(result).toBe(true);
       areas = testingTown.conversationAreas;
     });
+    // 0 x y w h case
     it('should add the conversation area to the list of conversation areas', () => {
       expect(areas.length).toEqual(1);
       expect(areas[0].label).toEqual(newConversationArea1.label);
       expect(areas[0].topic).toEqual(newConversationArea1.topic);
       expect(areas[0].boundingBox).toEqual(newConversationArea1.boundingBox);
+
+      addAreaXYHW(0, 0, 19, 16);
+      expect(areas.length).toEqual(2);
+    });
+    it('should emit to the right listeners onConversationAreaUpdated', () => {
+      mockListeners.forEach(listeners =>
+        expect(listeners.onConversationAreaUpdated).toBeCalledWith(newConversationArea1),
+      );
     });
     it('should have a valid topic', () => {});
     it('should have a new conversationArea label', () => {
@@ -329,128 +353,78 @@ describe('CoveyTownController', () => {
       ).toBeTruthy();
     });
     it('should not allow overlapping areas', () => {
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 90, y: 90, height: 20, width: 20 },
-          }),
-        ),
-      ).toBeFalsy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 0, y: 0, height: 10, width: 10 },
-          }),
-        ),
-      ).toBeTruthy();
+      expect(addAreaXYHW(90, 90, 20, 20)).toBe(false);
+      expect(addAreaXYHW(0, 0, 10, 10)).toBe(true);
     });
     it('should allow adjacent areas', () => {
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 95, y: 95, height: 20, width: 20 },
-          }),
-        ),
-      ).toBeFalsy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 100, y: 90, height: 10, width: 10 },
-          }),
-        ),
-      ).toBeTruthy();
+      expect(addAreaXYHW(95, 95, 20, 20)).toBe(false);
+      expect(addAreaXYHW(100, 90, 10, 10)).toBe(true);
     });
     it('should have the right boundaries', () => {
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 90, y: 90, height: 10, width: 10 },
-          }),
-        ),
-      ).toBeTruthy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 90, y: 90, height: 11, width: 10 },
-          }),
-        ),
-      ).toBeFalsy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 90, y: 90, height: 10, width: 11 },
-          }),
-        ),
-      ).toBeFalsy();
-
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 90, y: 110, height: 10, width: 10 },
-          }),
-        ),
-      ).toBeTruthy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 90, y: 110, height: 11, width: 10 },
-          }),
-        ),
-      ).toBeFalsy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 90, y: 110, height: 10, width: 11 },
-          }),
-        ),
-      ).toBeFalsy();
-
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 110, y: 90, height: 10, width: 10 },
-          }),
-        ),
-      ).toBeTruthy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 110, y: 90, height: 11, width: 10 },
-          }),
-        ),
-      ).toBeFalsy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 110, y: 90, height: 10, width: 11 },
-          }),
-        ),
-      ).toBeFalsy();
-
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 110, y: 110, height: 10, width: 10 },
-          }),
-        ),
-      ).toBeTruthy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 110, y: 110, height: 11, width: 10 },
-          }),
-        ),
-      ).toBeFalsy();
-      expect(
-        testingTown.addConversationArea(
-          TestUtils.createConversationForTesting({
-            boundingBox: { x: 110, y: 110, height: 10, width: 11 },
-          }),
-        ),
-      ).toBeFalsy();
+      const nums: [number, number][] = [
+        [90, 90],
+        [90, 110],
+        [110, 90],
+        [110, 110],
+      ];
+      nums.forEach(pair => {
+        expect(addAreaXYHW(pair[0], pair[1], 10, 10)).toBe(true);
+        expect(addAreaXYHW(pair[0], pair[1], 11, 10)).toBe(false);
+        expect(addAreaXYHW(pair[0], pair[1], 10, 11)).toBe(false);
+      });
     });
+    let player: Player;
+    const newLocationUndefined: UserLocation = {
+      moving: false,
+      rotation: 'front',
+      x: 50,
+      y: 50,
+      conversationLabel: nanoid(),
+    };
     describe('player stuff', () => {
-      beforeEach(() => {});
+      beforeEach(() => {
+        player = new Player(nanoid());
+        testingTown.addPlayer(player);
+        testingTown.updatePlayerLocation(player, newLocationUndefined);
+        // console.log(areas.length);
+      });
+      it('doesnt add the player if theyre outside the area', () => {
+        addAreaXYHW(0, 0, 10, 10);
+        expect(areas[0].occupantsByID.find(id => id === player.id)).toBeUndefined();
+        expect(areas[1].occupantsByID.find(id => id === player.id)).toBeUndefined();
+      });
+      it('adds the player if theyre inside the area 1', () => {
+        addAreaXYHW(54, 54, 10, 10);
+        expect(areas[0].occupantsByID.find(id => id === player.id)).toBeUndefined();
+        expect(areas[1].occupantsByID.find(id => id === player.id)).toBe(player.id);
+
+        expect(player.activeConversationArea).toBe(areas[1]);
+      });
+      it('adds the player if theyre inside the area 2', () => {
+        // case where the label is crap but wants to join the
+        // valid area
+        const player2 = new Player(nanoid());
+        testingTown.addPlayer(player2);
+        testingTown.updatePlayerLocation(player2, newLocationUndefined);
+        addAreaXYHW(40, 60, 25, 25);
+        expect(areas[1].occupantsByID.find(id => id === player.id)).toBe(player.id);
+        expect(areas[1].occupantsByID.find(id => id === player2.id)).toBe(player2.id);
+        expect(areas[1].occupantsByID.length).toBe(2);
+        expect(areas[0].occupantsByID.length).toBe(0);
+        expect(player2.activeConversationArea).toBe(areas[1]);
+      });
+      it('doesnt add the player if theyre adjacent 1', () => {
+        addAreaXYHW(50, 55, 10, 10);
+        expect(areas[1].occupantsByID.find(id => id === player.id)).toBeUndefined();
+        expect(player.activeConversationArea).toBeUndefined();
+      });
+      it('doesnt add the player if theyre adjacent 2', () => {
+        addAreaXYHW(60, 52, 20, 20);
+        expect(areas[1].occupantsByID.find(id => id === player.id)).toBeUndefined();
+      });
+    });
+    afterEach(() => {
+      mockListeners.forEach(listeners => expect(listeners.onConversationAreaUpdated).toBeCalled());
     });
   });
 
@@ -711,7 +685,7 @@ describe('CoveyTownController', () => {
         it('should remove the player from OccupantsID', () => {
           expect(areas[0].occupantsByID.length).toBe(1);
           expect(areas[0].occupantsByID[0]).toBe(player2.id);
-          // expect(areas[0].occupantsByID.find(id => id === player1.id)).toBeUndefined();
+          expect(areas[0].occupantsByID.find(id => id === player1.id)).toBeUndefined();
           testingTown.conversationAreas.forEach(conv =>
             expect(conv.occupantsByID.find(id => id === player1.id)).toBeUndefined(),
           );
@@ -784,6 +758,8 @@ describe('CoveyTownController', () => {
         testingTown.updatePlayerLocation(player1, newLocationUndefined);
         expect(player1.activeConversationArea).toBeUndefined();
       });
+
+      // same convo area
     });
   });
 
