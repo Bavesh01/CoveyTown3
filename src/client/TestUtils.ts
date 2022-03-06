@@ -105,3 +105,17 @@ export function createConversationForTesting(params?:{ conversationLabel?: strin
     topic: params?.conversationTopic || nanoid(),
   };
 }
+
+export function createUndefinedTopicCA(params?:{ conversationLabel?: string,
+  conversationTopic?: string,
+  boundingBox?: BoundingBox
+}) : ServerConversationArea {
+
+  return {
+    boundingBox: params?.boundingBox || { height: 100, width: 100, x: 400, y: 400 },
+    label: nanoid(),
+    occupantsByID: [],
+    topic: '',
+  };
+}
+

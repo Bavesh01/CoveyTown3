@@ -337,8 +337,11 @@ describe('CoveyTownController', () => {
         expect(listeners.onConversationAreaUpdated).toBeCalledWith(newConversationArea1),
       );
     });
-    it('should have a valid topic', () => {});
-    it('should have a new conversationArea label', () => {
+    it('should have a valid topic', () => {
+      expect(testingTown.addConversationArea(TestUtils.createUndefinedTopicCA())).toBeFalsy();
+      expect(testingTown.addConversationArea(TestUtils.createConversationForTesting())).toBe(true);
+    });
+    it('should have valid conversationArea label', () => {
       // undefined case
       expect(
         testingTown.addConversationArea(
@@ -508,18 +511,27 @@ describe('CoveyTownController', () => {
     it('should emit an onConversationAreaDestroyed event when the last player leaves the conversation area', async () => {
       const session = await testingTown.addPlayer(player1);
       testingTown.updatePlayerLocation(player1, newLocation1);
-
+      testingTown.addConversationArea(TestUtils.createConversationForTesting());
       mockListeners.forEach(listener => testingTown.addTownListener(listener));
 
       const area = testingTown.conversationAreas[0];
       expect(area.occupantsByID.length).toBe(1);
 
-      expect(testingTown.conversationAreas.length).toBe(1);
       testingTown.destroySession(session);
       mockListeners.forEach(listener =>
         expect(listener.onConversationAreaDestroyed).toBeCalledWith(area),
       );
-      expect(testingTown.conversationAreas.length).toBe(0);
+    });
+    it('should remove the area from the coveyTownController on destruction', async () => {
+      const session = await testingTown.addPlayer(player1);
+      const prevLabel = player1.activeConversationArea?.label;
+      testingTown.updatePlayerLocation(player1, newLocation1);
+      testingTown.addConversationArea(TestUtils.createConversationForTesting());
+
+      expect(testingTown.conversationAreas.length).toBe(2);
+      testingTown.destroySession(session);
+      expect(testingTown.conversationAreas.length).toBe(1);
+      expect(testingTown.conversationAreas.find(ca => ca.label === prevLabel)).toBeUndefined();
     });
   });
 
@@ -737,6 +749,23 @@ describe('CoveyTownController', () => {
           if (locationArea) {
             expect(player1.isWithin(locationArea)).toBeTruthy();
           } // else throw error
+        });
+      });
+      describe('moves within the same conversation area', () => {
+        it('should not emit to a conversation area', () => {
+          testingTown.updatePlayerLocation(player1, newLocation1);
+          mockListeners.forEach(mockReset);
+          testingTown.updatePlayerLocation(player1, newLocation1);
+          expect(
+            mockListeners.forEach(lis =>
+              expect(lis.onConversationAreaUpdated).not.toBeCalledWith(areas[0]),
+            ),
+          );
+        });
+        it('should have the same conversationArea Label', () => {
+          testingTown.updatePlayerLocation(player1, newLocation1);
+          testingTown.updatePlayerLocation(player1, newLocation1);
+          expect(player1.activeConversationArea).toBe(areas[0]);
         });
       });
     });
